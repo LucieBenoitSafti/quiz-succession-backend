@@ -7,12 +7,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors()); // Autorise GitHub Pages
-app.use(express.json()); // Parse JSON des formulaires
+app.use(cors());
+app.use(express.json());
 
 const filePath = path.join(__dirname, 'results.json');
 
-// Fonction pour lire les résultats
 const getSubmissions = () => {
     try {
         if (fs.existsSync(filePath)) {
@@ -20,33 +19,37 @@ const getSubmissions = () => {
             return JSON.parse(data);
         }
     } catch (err) {
-        console.error('Erreur de lecture du fichier:', err);
+        console.error('Erreur de lecture:', err);
     }
     return [];
 };
 
-// Endpoint pour recevoir les résultats du quiz
+// Dictionnaire pour rendre les réponses lisibles
+const labels = {
+    q1: "Sentiment",
+    q2: "Nb Héritiers",
+    q3: "État Bien",
+    q4: "Discussion",
+    q5: "Délai",
+    q6: "Obstacle",
+    q7: "Avis Pro"
+};
+
 app.post('/submit-quiz', (req, res) => {
     const results = req.body;
-    const timestamp = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' });
-    
-    results.timestamp = timestamp;
+    results.timestamp = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' });
 
     let submissions = getSubmissions();
     submissions.push(results);
 
     try {
         fs.writeFileSync(filePath, JSON.stringify(submissions, null, 2));
-        console.log(`Quiz soumis par: ${results.fullName || 'Anonyme'}`);
-        res.json({ success: true, message: 'Résultats sauvegardés !' });
+        res.json({ success: true });
     } catch (err) {
-        console.error('Erreur de sauvegarde:', err);
-        res.status(500).json({ success: false, message: 'Erreur serveur lors de la sauvegarde.' });
+        res.status(500).json({ success: false });
     }
 });
 
-// Endpoint SECRET pour voir les résultats
-// URL: https://quiz-succession-backend.onrender.com/voir-les-resultats-secrets
 app.get('/voir-les-resultats-secrets', (req, res) => {
     const submissions = getSubmissions();
     
@@ -54,54 +57,77 @@ app.get('/voir-les-resultats-secrets', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Résultats du Quiz Succession</title>
+        <title>Détails des Résultats - Quiz Succession</title>
         <meta charset="UTF-8">
         <style>
-            body { font-family: sans-serif; margin: 20px; background: #f4f7f6; }
-            h1 { color: #2c3e50; }
-            table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-            th { background-color: #667eea; color: white; }
-            tr:hover { background-color: #f5f5f5; }
-            .no-data { padding: 20px; text-align: center; color: #7f8c8d; }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: #f0f2f5; color: #1c1e21; }
+            .container { max-width: 100%; overflow-x: auto; }
+            h1 { color: #1a73e8; text-align: center; margin-bottom: 30px; }
+            table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-size: 0.9rem; }
+            th { background-color: #1a73e8; color: white; padding: 15px 10px; text-align: left; white-space: nowrap; }
+            td { padding: 12px 10px; border-bottom: 1px solid #e4e6eb; vertical-align: top; }
+            tr:hover { background-color: #f8f9fa; }
+            .profile-tag { display: inline-block; padding: 4px 8px; border-radius: 4px; background: #e8f0fe; color: #1967d2; font-weight: bold; font-size: 0.8rem; }
+            .answer-cell { font-size: 0.8rem; color: #4b4b4b; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+            .no-data { padding: 40px; text-align: center; color: #65676b; font-style: italic; }
+            .header-info { margin-bottom: 15px; font-size: 0.9rem; color: #65676b; }
         </style>
     </head>
     <body>
-        <h1>Liste des participations au Quiz</h1>
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Nom</th>
-                    <th>Téléphone</th>
-                    <th>Adresse du bien</th>
-                    <th>Profil</th>
-                </tr>
-            </thead>
-            <tbody>
+        <h1>📊 Tableau de Bord des Résultats</h1>
+        <div class="header-info">Dernières soumissions en haut. Les réponses aux questions sont abrégées pour la lisibilité.</div>
+        <div class="container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Contact</th>
+                        <th>Profil</th>
+                        <th>Q1: Sentiment</th>
+                        <th>Q2: Héritiers</th>
+                        <th>Q3: État</th>
+                        <th>Q4: Accord</th>
+                        <th>Q5: Délai</th>
+                        <th>Q6: Obstacle</th>
+                        <th>Q7: Aide</th>
+                    </tr>
+                </thead>
+                <tbody>
     `;
 
     if (submissions.length === 0) {
-        html += '<tr><td colspan="5" class="no-data">Aucun résultat pour le moment.</td></tr>';
+        html += '<tr><td colspan="10" class="no-data">Aucune donnée enregistrée pour le moment.</td></tr>';
     } else {
-        // Afficher les plus récents en premier
         submissions.reverse().forEach(s => {
+            const ans = s.answers || {};
             html += `
                 <tr>
-                    <td>${s.timestamp || 'N/A'}</td>
-                    <td>${s.fullName || 'N/A'}</td>
-                    <td>${s.phone || 'N/A'}</td>
-                    <td>${s.address || 'N/A'}</td>
-                    <td><strong>${s.profile || 'N/A'}</strong></td>
+                    <td style="white-space: nowrap;">${s.timestamp || 'N/A'}</td>
+                    <td>
+                        <strong>${s.fullName || 'N/A'}</strong><br>
+                        <small>📞 ${s.phone || 'N/A'}</small><br>
+                        <small>📍 ${s.address || '-'}</small>
+                    </td>
+                    <td><span class="profile-tag">${s.profile || 'N/A'}</span></td>
+                    <td class="answer-cell">${ans.q1 || '-'}</td>
+                    <td class="answer-cell">${ans.q2 || '-'}</td>
+                    <td class="answer-cell">${ans.q3 || '-'}</td>
+                    <td class="answer-cell">${ans.q4 || '-'}</td>
+                    <td class="answer-cell">${ans.q5 || '-'}</td>
+                    <td class="answer-cell">${ans.q6 || '-'}</td>
+                    <td class="answer-cell">${ans.q7 || '-'}</td>
                 </tr>
             `;
         });
     }
 
     html += `
-            </tbody>
-        </table>
-        <p style="margin-top: 20px; font-size: 0.8em; color: #95a5a6;">Note : Les données sont effacées si le serveur Render redémarre (version gratuite).</p>
+                </tbody>
+            </table>
+        </div>
+        <footer style="margin-top: 30px; text-align: center; font-size: 0.8rem; color: #65676b;">
+            Données stockées temporairement sur Render. Pensez à les copier régulièrement.
+        </footer>
     </body>
     </html>
     `;
@@ -109,11 +135,10 @@ app.get('/voir-les-resultats-secrets', (req, res) => {
     res.send(html);
 });
 
-// Endpoint de test
 app.get('/', (req, res) => {
-    res.json({ status: 'Backend OK', message: 'Le serveur fonctionne. Utilisez /voir-les-resultats-secrets pour voir les données.' });
+    res.send('Serveur Quiz Actif. <a href="/voir-les-resultats-secrets">Voir les résultats</a>');
 });
 
 app.listen(PORT, () => {
-    console.log(`Backend sur port ${PORT}`);
+    console.log(`Serveur démarré sur le port ${PORT}`);
 });
